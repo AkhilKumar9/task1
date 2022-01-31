@@ -1,0 +1,126 @@
+region country(primarykey) -> region table
+
+create table region
+(
+region varchar(70) NOT NULL,
+country varchar(70) NOT NULL,
+PRIMARY KEY (country)
+)
+
+
+
+country(foreign_key),item_type sales_channel ,order_id-> sales_mode table
+
+create table sales_mode(
+item_type varchar(50) NOT NULL,
+sales_channel varchar(20) NOT NULL,
+order_id int NOT NULL,
+country varchar(70) NOT NULL,
+FOREIGN KEY (order_id) REFERENCES order(order_id),
+FOREIGN KEY (country) REFERENCES region(country)
+)
+
+
+order_priority,order_date,order_id,ship_date-> order table
+create table order (
+order_priority char NOT NULL,
+order_date DATE NOT NULL,
+order_id int NOT NULL,
+ship_date date NOT NULL,
+PRIMARY KEY (order_id)
+)
+
+
+order_id(foreign key),units_sold,unit_price,unit_Cost -> unit_sale table
+create table unit_sale(
+order_id int NOT NULL,
+units_sold int NOT NULL,
+unit_price float(10,2) NOT NULL,
+unit_cost float(10,2) NOT NULLt,
+FOREIGN KEY (order_id) REFERENCES `order`(order_id)
+)
+
+
+
+order_id(foreign key),total_revenue,total_cost,total_profit -> total_sale table
+create table total_sale(
+order_id int NOT NULL,
+total_revenue float(20,2) NOT NULL,
+total_cost float(20,2) NOT NULL,
+total_profit float(20,2) NOT NULL.
+FOREIGN KEY (order_id) REFERENCES `order`(order_id)
+)
+
+report 1 :
+select t.total_revenue,t.total_cost,t.total_profit,r.region,MONTH(ANY_VALUE(o.order_date)) month,YEAR(ANY_VALUE(o.order_date)) year 
+from `order` o  
+join total_sale t  
+on o.order_id=t.order_id  
+join sales_mode s  on 
+o.order_id=s.order_id  
+join region r on r.country=s.country 
+group by month,year,r.region
+
+
+report 2:
+
+select t.total_revenue,t.total_cost,t.total_profit,YEAR(o.order_date),r.region 
+from total_sale t 
+join sales_mode s 
+on t.order_id=s.order_id 
+join order o 
+on t.order_id=o.order_id
+join region r on
+r.country=s.country
+groupby r.region , YEAR(o.oder_date)
+
+
+report 3:
+select sum(units_sold) 
+from unit_sales u 
+join order o
+on u.order_id=o.order_id 
+join sales_mode s 
+on o.order_id=s.order_id 
+join region r on
+r.country=s.country
+groupby r.region,YEAR(o.order_date),s.sales_channel 
+
+
+
+
+Task2 tables :
+
+create table buildings(
+buildingSurrogateId varchar(10) ,
+buildingCode varchar(10) NOT NULL,
+buildingName varchar(30) NOT NULL,
+address_1 varchar(50) NOT NULL,
+address_2 varchar(50) NOT NULL,
+city varchar(30) NOT NULL,
+type varchar(30) NOT NULL,
+state varchar(30) NOT NULL,
+country varchar(30) NOT NULL,
+pincode int NOT NULL,
+totalFloors int NOT NULL,
+TotalFlats int NOT NULL,
+PRIMARY KEY (buildingSurrogateId)
+);
+
+
+create table tenants(
+tenantSurrogateId varchar(10) NOT NULL,
+buildingSurrogateId  varchar(10) NOT NULL,
+name varchar(30) NOT NULL,
+email varchar(40) NOT NULL,
+mobile varchar(20) NOT NULL,
+aggreementDate DATE NOT NULL,
+agreementDuration varchar(20) NOT NULL,
+floor int NOT NULL,
+flatNumber int NOT NULL,
+PRIMARY KEY(tenantSurrogateId),
+FOREIGN KEY (buildingSurrogateId) REFERENCES buildings(buildingSurrogateId));
+
+
+
+

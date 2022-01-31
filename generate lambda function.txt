@@ -1,0 +1,104 @@
+import json
+import mysql.connector
+import logging
+import boto3
+import requests
+
+
+#queue=boto3.client('sqs')
+#queue_url=queue.get_queue_url(QueueName='mailqueue')['QueueUrl']
+#print(queue_url)
+
+lambda_client = boto3.client('lambda',region_name='us-east-2')
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+
+def openDBConn():
+    try:
+        connection=mysql.connector.connect(
+            host='mysql-host.c68arygyqekj.us-east-2.rds.amazonaws.com',
+            user='ram',
+            password='Pass_123',
+            database='sales',
+            autocommit=True
+            )
+        if connection.is_connected():
+            logger.info('connection successfull')
+            return connection
+        else:
+            logger.error("error in credentials")
+            return 0
+    except Exception as e:
+        logger.exception("unsuccessfull connection {}".format(e))
+        return 0
+        
+def generate_firstreport(connection):
+    cursor = connection.cursor(dictionary=True)
+    query=("select t.total_revenue,t.total_cost,t.total_profit,r.region,MONTH(ANY_VALUE(o.order_date)) month,YEAR(ANY_VALUE(o.order_date)) year from `order` o  join total_sale t  on o.order_id=t.order_id  join sales_mode s  on o.order_id=s.order_id  join region r on r.country=s.country group by month,year,r.region")
+    logger.info('First report query : {0}'.format(query))
+    cursor.execute(query)
+    result = cursor.fetchall()
+    logger.info('First report result: {0}'.format(result))
+    return result
+    #for (order_id,order_priority,order_date,ship_date) in cursor:
+        #print("orderid {}, orderpriority {}, orderdate{},ship_date{}".format(order_id,order_priority,order_date,ship_date))
+        
+def generate_secondreport(connection):
+    cursor = connection.cursor(dictionary=True)
+    query=("select t.total_revenue,t.total_cost,t.total_profit,YEAR(ANY_VALUE(o.order_date)) year,r.region  from total_sale t  join sales_mode s  on t.order_id=s.order_id  join `order` o  on t.order_id=o.order_id join region r on r.country=s.country group by r.region , YEAR(o.order_date) order by r.region")
+    logger.info('Second report query : {0}'.format(query))
+    cursor.execute(query)
+    result = cursor.fetchall()
+    logger.info('Second report result: {0}'.format(result))
+    return result
+        
+def generate_thirdreport(connection):
+    cursor = connection.cursor(dictionary=True)
+    query=("select CAST(SUM(u.units_sold) as CHAR) units_sold,  r.region,YEAR(o.order_date) year , s.sales_channel from unit_sale u  join `order` o on u.order_id=o.order_id  join sales_mode s  on o.order_id=s.order_id  join region r on r.country=s.country group by r.region,YEAR(o.order_date),s.sales_channel")
+    logger.info('Thirdb report query : {0}'.format(query))
+    cursor.execute(query)
+    result = cursor.fetchall()
+    logger.info('Third report: {0}'.format(result))
+    return result
+    
+def callemail():
+    msg = {"key":"proccess success"}
+    print("in email lambda function",lambda_client)
+    try:
+        resp=lambda_client.invoke(FunctionName="emaillambda",InvocationType='RequestResponse',Payload=json.dumps(msg))
+        logger.info("after invocation {}".format(resp))
+    except e:
+        print("exception block on invoking the api")
+        logger.info("error in calling email lambda n {}".format(e))
+        
+    
+    
+    
+    
+def lambda_handler(event, context):
+    connection=openDBConn()
+    print("event is",event)
+    if (connection != 0):
+        #Result=generatefirstreport(connection)
+        report=event['queryStringParameters']['report']
+        if(report == "first"):
+            Result=generate_firstreport(connection)
+        elif(report == "second"):
+            Result=generate_secondreport(connection)
+        else:
+            Result=generate_thirdreport(connection)
+        if(Result!=0):
+            #call_emaillambda()
+            callemail()
+            return {
+                'statusCode': 200,
+                'body': json.dumps(Result)
+                }
+    else:
+        callemail()
+        return {
+            'statusCode': 500,
+            'body': json.dumps('Could not establish connection to database . please try later')
+        }

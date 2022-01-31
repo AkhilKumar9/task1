@@ -1,0 +1,21 @@
+import json
+import boto3
+import requests
+import logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+def call_sendemail_lambda():
+    url="https://mom20pw815.execute-api.us-east-2.amazonaws.com/development"
+    result = requests.get(url)
+    logger.info('Sent mail API respone: {0}'.format(result))
+    
+    
+    
+def lambda_handler(event, context):
+    # TODO implement
+    call_sendemail_lambda()
+    return {
+        'statusCode': 200,
+        'body': json.dumps('called external api!')
+    }

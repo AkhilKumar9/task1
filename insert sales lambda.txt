@@ -1,0 +1,206 @@
+import json
+import boto3
+import pandas as pd
+import mysql.connector
+import botocore
+import datetime
+import logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+
+
+def openDBConn():
+    try:
+        connection=mysql.connector.connect(
+            host='mysql-host.c68arygyqekj.us-east-2.rds.amazonaws.com',
+            user='ram',
+            password='Pass_123',
+            database='sales',
+            autocommit=True
+            )
+        if connection.is_connected():
+            logger.info('connection successfull')
+            return connection
+        else:
+            return 0
+    except Exception as e:
+        logger.exception("unsuccessfull connection {}".format(e))
+        return 0
+        
+    
+def insert_order(connection,df,column1,column2,column3,column4):
+    cursor = connection.cursor()
+    add_order=("insert into `order` (order_id,order_priority,order_date,ship_date) values (%s,%s,%s,%s)")
+    order_values=[]
+    for i in range(len(df)):
+        order_values.append((df[column1].iloc[i],df[column2].iloc[i],datetime.datetime.strptime(df[column3].iloc[i],"%m/%d/%Y").strftime("%Y-%m-%d"),datetime.datetime.strptime(df[column4].iloc[i],"%m/%d/%Y").strftime("%Y-%m-%d")))
+    order_length=len(order_values)
+    logger.info("total length of order values {}".format(order_length))
+    try:
+        cursor.executemany(add_order,order_values)
+        connection.commit()
+        RC=1
+    except e:
+        logger.exception("unsuccessfull in inserting the values {}".format(e))
+        connection.rollback()
+        RC=0
+    finally:
+        cursor.close()
+    return RC
+    
+def insert_unit_sale(connection,df,column1,column2,column3,column4):
+    cursor = connection.cursor()
+    add_unitsale=("insert into unit_sale (order_id,units_sold,unit_price,unit_cost) values (%s,%s,%s,%s)")
+    unitsale_values=[]
+    for i in range(len(df)):
+        unitsale_values.append((df[column1].iloc[i],df[column2].iloc[i],df[column3].iloc[i],df[column4].iloc[i]))
+    unitsale_length=len(unitsale_values)
+    logger.info("total length of unit sale {}".format(unitsale_length))
+    try:
+        cursor.executemany(add_unitsale,unitsale_values)
+        connection.commit()
+        RC=1
+    except e:
+        logger.exception("unsuccessfull in inserting the values {}".format(e))
+        connection.rollback()
+        RC=0
+    finally:
+        cursor.close()
+    return RC
+
+def insert_total_sale(connection,df,column1,column2,column3,column4):
+    cursor = connection.cursor()
+    add_totalsale=("insert into total_sale (order_id,total_revenue,total_cost,total_profit) values (%s,%s,%s,%s)")
+    totalsale_values=[]
+    for i in range(len(df)):
+        totalsale_values.append((df[column1].iloc[i],df[column2].iloc[i],df[column3].iloc[i],df[column4].iloc[i]))
+    totalsale_length=len(totalsale_values)
+    logger.info("total length of total values {}".format(totalsale_length))
+    try:
+        cursor.executemany(add_totalsale,totalsale_values)
+        connection.commit()
+        RC=1
+    except e:
+        logger.exception("unsuccessfull in inserting the values {}".format(e))
+        connection.rollback()
+        RC=0
+    finally:
+        cursor.close()
+    return RC
+    
+def insert_region(connection,df,column1,column2):
+    cursor = connection.cursor()
+    add_region=("insert into region (region,country) values (%s,%s)")
+    region_values=[]
+    for i in range(len(df)):
+        region_values.append((df[column1].iloc[i],df[column2].iloc[i]))
+    #print(region_values)
+    region_values=list(set([i for i in region_values]))
+    region_length=len(region_values)
+    logger.info("total length of total values {}".format(region_length))
+    print("total length of region sale",len(region_values))
+    try:
+        cursor.executemany(add_region,region_values)
+        connection.commit()
+        RC=1
+    except e:
+        logger.exception("unsuccessfull in inserting the values {}".format(e))
+        connection.rollback()
+        RC=0
+    finally:
+        cursor.close()
+    return RC
+    
+def insert_sales_mode(connection,df,column1,column2,column3,column4):
+    cursor = connection.cursor()
+    add_salesmode=("insert into sales_mode (item_type,sales_channel,order_id,country) values (%s,%s,%s,%s)")
+    salesmode_values=[]
+    for i in range(len(df)):
+        salesmode_values.append((df[column1].iloc[i],df[column2].iloc[i],df[column3].iloc[i],df[column4].iloc[i]))
+    #print(salesmode_values)
+    
+    salesmode_length=len(salesmode_values)
+    logger.info("total length of total values {}".format(salesmode_length))
+    print("total length of sales mode sale",len(salesmode_values))
+    try:
+        cursor.executemany(add_salesmode,salesmode_values)
+        connection.commit()
+        RC=1
+    except e:
+        logger.exception("unsuccessfull in inserting the values {}".format(e))
+        connection.rollback()
+        RC=0
+    finally:
+        cursor.close()
+    return RC
+    
+    
+
+    
+        
+def read_file(bucket_name, key):
+    s3_obj=boto3.client('s3','us-east-2', config=botocore.config.Config(s3={'addressing_style':'path'}))
+    connection=openDBConn()
+    if(connection != 0):
+        print(key)
+        content = s3_obj.get_object(Bucket=bucket_name, Key=key)
+        #print(content['Body'].read().decode('utf-8'))
+        data=content['Body'].read().decode('utf-8').splitlines()
+        df_s3_data = pd.DataFrame([sub.split(",") for sub in data])
+        new_header = df_s3_data.iloc[0]
+        #df_s3_data = df_s3_data[1:] 
+        df_s3_data.columns = new_header
+        df_s3_data.drop_duplicates(subset =['Region','Country','Item_Type','Sales_Channel','Order_Priority','Order_Date','Order_ID','Ship_Date','Units_Sold','Unit_Price','Unit_Cost','Total_Revenue','Total_Cost', 'Total_Profit'],keep = 'first', inplace = True)
+        df_s3_data=df_s3_data[1:]
+        #df_s3_data = pd.read_csv(content['Body'].read().decode('utf-8'), sep=',',header=0)
+        #df_s3_data = pd.read_csv(r"s3://bucket_name/key", sep=',',header=0)
+        RC=insert_order(connection,df_s3_data,'Order_ID','Order_Priority','Order_Date','Ship_Date')
+        if(RC == 1):
+            RC=insert_unit_sale(connection,df_s3_data,'Order_ID','Units_Sold','Unit_Price','Unit_Cost')
+            if(RC == 1):
+                RC=insert_total_sale(connection,df_s3_data,'Order_ID','Total_Revenue','Total_Cost','Total_Profit')
+            else:
+                RC=0
+            RC=insert_region(connection,df_s3_data,'Region','Country')
+            if(RC == 1):
+                RC=insert_sales_mode(connection,df_s3_data,'Item_Type','Sales_Channel','Order_ID','Country')
+            else:
+                RC=0
+        else:
+            RC=0
+        connection.close()
+    else:
+        RC=0
+
+    return RC
+    
+def callemail():
+    msg = {"key":"proccess success"}
+    print("in email lambda function",lambda_client)
+    try:
+        resp=lambda_client.invoke(FunctionName="emaillambda",InvocationType='RequestResponse',Payload=json.dumps(msg))
+        logger.info("after invocation {}".format(resp))
+    except e:
+        print("exception block on invoking the api")
+        logger.info("error in calling email lambda n {}".format(e))
+
+def lambda_handler(event, context):
+    # TODO implement
+    #print(event)
+    filename=event['Records'][0]['s3']['object']['key']
+    #print(filename)
+    #connection=openDBConn()
+    is_success=read_file('sales-list',filename)
+    if (is_success == 1):
+        callemail()
+        return {
+            'statusCode': 201,
+            'body': json.dumps('Insertion success')
+        }
+    else:
+        callemail()
+        return {
+            'statusCode': 500,
+            'body': json.dumps('Insertion failure')
+        }
